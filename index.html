@@ -161,6 +161,15 @@ button:hover { opacity: 0.9; }
     color: #374151;
     margin-right: 6px;
 }
+.proxy-warning {
+    background: #1e293b;
+    border: 1px solid #fbbf24;
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 15px;
+    font-size: 13px;
+    color: #fcd34d;
+}
 </style>
 </head>
 <body>
@@ -185,8 +194,8 @@ button:hover { opacity: 0.9; }
         </div>
         <div id="status" class="status">ready</div>
         <div class="footer-links">
-            <a href="https://zzxchocolate.github.io/discowd-better-fetch-n/terms.html">Terms of Service</a>
-            <a href="https://zzxchocolate.github.io/discowd-better-fetch-n/privacy.html">Privacy Policy</a>
+            <a href="https://zzxchocolate.github.io/discowd-better-fetch-n/terms.html">Terms</a>
+            <a href="https://zzxchocolate.github.io/discowd-better-fetch-n/privacy.html">Privacy</a>
         </div>
     </div>
 
@@ -198,6 +207,10 @@ button:hover { opacity: 0.9; }
         </div>
         <h1>Discord Receiver</h1>
         
+        <div class="proxy-warning">
+            ⚠️ Using CORS proxy to bypass browser restrictions
+        </div>
+        
         <div class="bot-settings">
             <label>bot token</label>
             <input type="password" id="botToken" placeholder="paste your bot token here">
@@ -205,9 +218,10 @@ button:hover { opacity: 0.9; }
             <input type="text" id="channelId" placeholder="channel id">
             <label>message limit (1-100)</label>
             <input type="number" id="messageLimit" placeholder="50" value="50" min="1" max="100">
+            <label style="margin-top:10px;">CORS Proxy URL (optional)</label>
+            <input type="text" id="proxyUrl" placeholder="https://corsproxy.io/?">
         </div>
         
-        <!-- DETAILED LOG -->
         <div style="margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
             <span style="font-weight:bold; font-size:13px;">DETAILED LOG</span>
             <button class="secondary" onclick="clearLog()" style="width:auto; padding:5px 15px; font-size:12px; margin:0;">clear log</button>
@@ -231,8 +245,8 @@ button:hover { opacity: 0.9; }
         
         <button class="secondary" onclick="showSendPage()">back</button>
         <div class="footer-links">
-            <a href="https://zzxchocolate.github.io/discowd-better-fetch-n/terms.html">Terms of Service</a>
-            <a href="https://zzxchocolate.github.io/discowd-better-fetch-n/privacy.html">Privacy Policy</a>
+            <a href="https://zzxchocolate.github.io/discowd-better-fetch-n/terms.html">Terms</a>
+            <a href="https://zzxchocolate.github.io/discowd-better-fetch-n/privacy.html">Privacy</a>
         </div>
     </div>
 
@@ -244,8 +258,8 @@ button:hover { opacity: 0.9; }
         <button onclick="saveSettings()">save</button>
         <button class="secondary" onclick="showSendPage()">back</button>
         <div class="footer-links">
-            <a href="https://zzxchocolate.github.io/discowd-better-fetch-n/terms.html">Terms of Service</a>
-            <a href="https://zzxchocolate.github.io/discowd-better-fetch-n/privacy.html">Privacy Policy</a>
+            <a href="https://zzxchocolate.github.io/discowd-better-fetch-n/terms.html">Terms</a>
+            <a href="https://zzxchocolate.github.io/discowd-better-fetch-n/privacy.html">Privacy</a>
         </div>
     </div>
 
@@ -255,12 +269,15 @@ button:hover { opacity: 0.9; }
 let webhooks = JSON.parse(localStorage.getItem("discordWebhooks") || "[]");
 let lastMessageId = null;
 
-// Load saved settings if they exist
+// Load saved settings
 if (localStorage.getItem("botToken")) {
     document.getElementById("botToken").value = localStorage.getItem("botToken");
 }
 if (localStorage.getItem("channelId")) {
     document.getElementById("channelId").value = localStorage.getItem("channelId");
+}
+if (localStorage.getItem("proxyUrl")) {
+    document.getElementById("proxyUrl").value = localStorage.getItem("proxyUrl");
 }
 
 function refreshWebhookSelect() {
@@ -375,6 +392,7 @@ async function fetchMessages() {
     const botToken = document.getElementById("botToken").value.trim();
     const channelId = document.getElementById("channelId").value.trim();
     const limit = parseInt(document.getElementById("messageLimit").value) || 50;
+    let proxyUrl = document.getElementById("proxyUrl").value.trim();
 
     if (!botToken) {
         addLogEntry('error', 'No bot token provided!');
@@ -394,13 +412,24 @@ async function fetchMessages() {
 
     localStorage.setItem("botToken", botToken);
     localStorage.setItem("channelId", channelId);
+    if (proxyUrl) {
+        localStorage.setItem("proxyUrl", proxyUrl);
+    }
     addLogEntry('debug', 'Settings saved to localStorage');
 
-    const fetchUrl = lastMessageId ? 
+    const apiUrl = lastMessageId ? 
         `https://discord.com/api/v10/channels/${channelId}/messages?limit=${limit}&before=${lastMessageId}` :
         `https://discord.com/api/v10/channels/${channelId}/messages?limit=${limit}`;
 
-    addLogEntry('info', `Requesting: ${fetchUrl}`);
+    // If no proxy URL provided, use a default one
+    if (!proxyUrl) {
+        proxyUrl = 'https://api.allorigins.win/raw?url=';
+        addLogEntry('debug', 'Using default proxy: api.allorigins.win');
+    }
+
+    const fetchUrl = proxyUrl + encodeURIComponent(apiUrl);
+
+    addLogEntry('info', `Requesting via proxy: ${fetchUrl.substring(0, 100)}...`);
     status.textContent = "fetching...";
 
     try {
@@ -456,9 +485,7 @@ async function fetchMessages() {
         }
 
         let html = '';
-        let count = 0;
         messages.forEach(msg => {
-            count++;
             const time = new Date(msg.timestamp);
             const timeStr = time.toLocaleString();
             const author = msg.author?.username || 'Unknown';
@@ -484,8 +511,8 @@ async function fetchMessages() {
         
     } catch (error) {
         addLogEntry('error', `ERROR: ${error.message}`);
-        addLogEntry('info', 'If you see "Failed to fetch", this is a CORS issue.');
-        addLogEntry('info', 'Upload this file to GitHub Pages or use a CORS extension.');
+        addLogEntry('info', 'If you see "Failed to fetch", the proxy may be down.');
+        addLogEntry('info', 'Try a different proxy URL in the settings.');
         status.textContent = "error: " + error.message;
     }
 }
@@ -519,6 +546,9 @@ function showReceivePage() {
     }
     if (localStorage.getItem("channelId")) {
         document.getElementById("channelId").value = localStorage.getItem("channelId");
+    }
+    if (localStorage.getItem("proxyUrl")) {
+        document.getElementById("proxyUrl").value = localStorage.getItem("proxyUrl");
     }
     clearLog();
     addLogEntry('info', 'Switched to Receive tab.');
