@@ -208,7 +208,7 @@ button:hover { opacity: 0.9; }
         <h1>Discord Receiver</h1>
         
         <div class="proxy-warning">
-            ⚠️ Using CORS proxy to bypass browser restrictions
+            Using proxy to bypass CORS restrictions
         </div>
         
         <div class="bot-settings">
@@ -218,8 +218,6 @@ button:hover { opacity: 0.9; }
             <input type="text" id="channelId" placeholder="channel id">
             <label>message limit (1-100)</label>
             <input type="number" id="messageLimit" placeholder="50" value="50" min="1" max="100">
-            <label style="margin-top:10px;">CORS Proxy URL (optional)</label>
-            <input type="text" id="proxyUrl" placeholder="https://corsproxy.io/?">
         </div>
         
         <div style="margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
@@ -275,9 +273,6 @@ if (localStorage.getItem("botToken")) {
 }
 if (localStorage.getItem("channelId")) {
     document.getElementById("channelId").value = localStorage.getItem("channelId");
-}
-if (localStorage.getItem("proxyUrl")) {
-    document.getElementById("proxyUrl").value = localStorage.getItem("proxyUrl");
 }
 
 function refreshWebhookSelect() {
@@ -392,7 +387,6 @@ async function fetchMessages() {
     const botToken = document.getElementById("botToken").value.trim();
     const channelId = document.getElementById("channelId").value.trim();
     const limit = parseInt(document.getElementById("messageLimit").value) || 50;
-    let proxyUrl = document.getElementById("proxyUrl").value.trim();
 
     if (!botToken) {
         addLogEntry('error', 'No bot token provided!');
@@ -412,109 +406,115 @@ async function fetchMessages() {
 
     localStorage.setItem("botToken", botToken);
     localStorage.setItem("channelId", channelId);
-    if (proxyUrl) {
-        localStorage.setItem("proxyUrl", proxyUrl);
-    }
     addLogEntry('debug', 'Settings saved to localStorage');
 
     const apiUrl = lastMessageId ? 
         `https://discord.com/api/v10/channels/${channelId}/messages?limit=${limit}&before=${lastMessageId}` :
         `https://discord.com/api/v10/channels/${channelId}/messages?limit=${limit}`;
 
-    // If no proxy URL provided, use a default one
-    if (!proxyUrl) {
-        proxyUrl = 'https://api.allorigins.win/raw?url=';
-        addLogEntry('debug', 'Using default proxy: api.allorigins.win');
-    }
+    // Use multiple proxy options with fallback
+    const proxies = [
+        'https://api.allorigins.win/raw?url=',
+        'https://corsproxy.io/?url=',
+        'https://cors-anywhere.herokuapp.com/'
+    ];
 
-    const fetchUrl = proxyUrl + encodeURIComponent(apiUrl);
+    let lastError = null;
 
-    addLogEntry('info', `Requesting via proxy: ${fetchUrl.substring(0, 100)}...`);
-    status.textContent = "fetching...";
-
-    try {
-        const response = await fetch(fetchUrl, {
-            headers: {
-                "Authorization": `Bot ${botToken}`
-            }
-        });
-        
-        addLogEntry('debug', `Response status: ${response.status} ${response.statusText}`);
-        
-        if (response.status === 401) {
-            addLogEntry('error', 'Invalid token! Reset it in Discord Developer Portal.');
-            status.textContent = "invalid token";
-            return;
-        }
-        
-        if (response.status === 403) {
-            addLogEntry('error', 'Bot lacks permission!');
-            addLogEntry('info', 'Make sure bot has "Read Message History" permission.');
-            status.textContent = "permission denied";
-            return;
-        }
-
-        if (response.status === 404) {
-            addLogEntry('error', 'Channel not found! Check the ID.');
-            status.textContent = "channel not found";
-            return;
-        }
-
-        if (!response.ok) {
-            const text = await response.text();
-            addLogEntry('error', `HTTP ${response.status}: ${text}`);
-            status.textContent = "error: " + response.status;
-            return;
-        }
-
-        const messages = await response.json();
-        addLogEntry('success', `Received ${messages.length} messages!`);
-        
-        if (!messages || messages.length === 0) {
-            addLogEntry('warning', 'No messages in this channel.');
-            if (!lastMessageId) {
-                log.innerHTML = `<div class="no-messages">channel is empty</div>`;
-            }
-            status.textContent = "no messages";
-            return;
-        }
-
-        if (messages.length > 0) {
-            lastMessageId = messages[messages.length - 1].id;
-            addLogEntry('debug', `Last message ID: ${lastMessageId}`);
-        }
-
-        let html = '';
-        messages.forEach(msg => {
-            const time = new Date(msg.timestamp);
-            const timeStr = time.toLocaleString();
-            const author = msg.author?.username || 'Unknown';
-            const content = msg.content || '(no text)';
+    for (const proxy of proxies) {
+        try {
+            addLogEntry('debug', `Trying proxy: ${proxy.substring(0, 30)}...`);
             
-            html += `
-                <div class="message-entry">
-                    <span>${timeStr}</span>
-                    <span style="color:#5865f2;font-weight:bold;">${escapeHTML(author)}</span>
-                    <span>${escapeHTML(content)}</span>
-                </div>
-            `;
-        });
+            const fetchUrl = proxy + encodeURIComponent(apiUrl);
+            
+            const response = await fetch(fetchUrl, {
+                headers: {
+                    "Authorization": `Bot ${botToken}`
+                }
+            });
+            
+            addLogEntry('debug', `Response status: ${response.status} ${response.statusText}`);
+            
+            if (response.status === 401) {
+                addLogEntry('error', 'Invalid token! Reset it in Discord Developer Portal.');
+                status.textContent = "invalid token";
+                return;
+            }
+            
+            if (response.status === 403) {
+                addLogEntry('error', 'Bot lacks permission!');
+                addLogEntry('info', 'Make sure bot has "Read Message History" permission.');
+                status.textContent = "permission denied";
+                return;
+            }
 
-        if (log.querySelector('.no-messages') || !lastMessageId) {
-            log.innerHTML = html;
-        } else {
-            log.innerHTML = html + log.innerHTML;
+            if (response.status === 404) {
+                addLogEntry('error', 'Channel not found! Check the ID.');
+                status.textContent = "channel not found";
+                return;
+            }
+
+            if (!response.ok) {
+                const text = await response.text();
+                addLogEntry('warning', `HTTP ${response.status} with proxy ${proxy.substring(0, 20)}`);
+                lastError = `HTTP ${response.status}`;
+                continue;
+            }
+
+            const messages = await response.json();
+            addLogEntry('success', `Received ${messages.length} messages using proxy!`);
+            
+            if (!messages || messages.length === 0) {
+                addLogEntry('warning', 'No messages in this channel.');
+                if (!lastMessageId) {
+                    log.innerHTML = `<div class="no-messages">channel is empty</div>`;
+                }
+                status.textContent = "no messages";
+                return;
+            }
+
+            if (messages.length > 0) {
+                lastMessageId = messages[messages.length - 1].id;
+                addLogEntry('debug', `Last message ID: ${lastMessageId}`);
+            }
+
+            let html = '';
+            messages.forEach(msg => {
+                const time = new Date(msg.timestamp);
+                const timeStr = time.toLocaleString();
+                const author = msg.author?.username || 'Unknown';
+                const content = msg.content || '(no text)';
+                
+                html += `
+                    <div class="message-entry">
+                        <span>${timeStr}</span>
+                        <span style="color:#5865f2;font-weight:bold;">${escapeHTML(author)}</span>
+                        <span>${escapeHTML(content)}</span>
+                    </div>
+                `;
+            });
+
+            if (log.querySelector('.no-messages') || !lastMessageId) {
+                log.innerHTML = html;
+            } else {
+                log.innerHTML = html + log.innerHTML;
+            }
+
+            status.textContent = `fetched ${messages.length} messages`;
+            addLogEntry('success', '=== FETCH COMPLETE ===');
+            return;
+
+        } catch (error) {
+            addLogEntry('warning', `Proxy failed: ${error.message}`);
+            lastError = error.message;
+            continue;
         }
-
-        status.textContent = `fetched ${messages.length} messages`;
-        addLogEntry('success', '=== FETCH COMPLETE ===');
-        
-    } catch (error) {
-        addLogEntry('error', `ERROR: ${error.message}`);
-        addLogEntry('info', 'If you see "Failed to fetch", the proxy may be down.');
-        addLogEntry('info', 'Try a different proxy URL in the settings.');
-        status.textContent = "error: " + error.message;
     }
+
+    // If all proxies failed
+    addLogEntry('error', `All proxies failed. Last error: ${lastError}`);
+    addLogEntry('info', 'Try installing a CORS browser extension instead.');
+    status.textContent = "all proxies failed";
 }
 
 function clearMessages() {
@@ -546,9 +546,6 @@ function showReceivePage() {
     }
     if (localStorage.getItem("channelId")) {
         document.getElementById("channelId").value = localStorage.getItem("channelId");
-    }
-    if (localStorage.getItem("proxyUrl")) {
-        document.getElementById("proxyUrl").value = localStorage.getItem("proxyUrl");
     }
     clearLog();
     addLogEntry('info', 'Switched to Receive tab.');
