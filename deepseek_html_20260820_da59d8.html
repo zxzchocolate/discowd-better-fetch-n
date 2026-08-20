@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Discord Tool</title>
+
+<style>
+* { box-sizing: border-box; }
+body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #111827;
+    color: white;
+    font-family: Arial, sans-serif;
+}
+.container {
+    width: 620px;
+    padding: 25px;
+    background: #1f2937;
+    border-radius: 15px;
+    box-shadow: 0 10px 40px #0008;
+    max-height: 98vh;
+    overflow-y: auto;
+}
+label {
+    display: block;
+    margin-bottom: 7px;
+    font-weight: bold;
+    font-size: 14px;
+}
+textarea, input, select {
+    width: 100%;
+    padding: 12px;
+    margin-bottom: 15px;
+    border: 1px solid #374151;
+    border-radius: 8px;
+    background: #111827;
+    color: white;
+    font-size: 15px;
+}
+button {
+    width: 100%;
+    padding: 12px;
+    border: 0;
+    border-radius: 8px;
+    background: #5865f2;
+    color: white;
+    font-size: 15px;
+    font-weight: bold;
+    cursor: pointer;
+    margin-bottom: 10px;
+}
+button:hover { opacity: 0.9; }
+.secondary { background: #374151; }
+.danger { background: #dc2626; }
+.success { background: #22c55e; }
+.status {
+    margin-top: 5px;
+    padding: 10px;
+    background: #111827;
+    border-radius: 8px;
+    min-height: 20px;
+    word-break: break-word;
+}
+.hidden { display: none; }
+.tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+.tabs button {
+    flex: 1;
+    margin-bottom: 0;
+    background: #374151;
+}
+.tabs button.active { background: #5865f2; }
+.controls-row {
+    display: flex;
+    gap: 10px;
+}
+.controls-row button { flex: 1; }
+.message-log {
+    background: #111827;
+    border-radius: 10px;
+    padding: 12px;
+    max-height: 200px;
+    overflow-y: auto;
+    margin-bottom: 15px;
+    border: 1px solid #374151;
+}
+.message-entry {
+    padding: 8px 10px;
+    margin-bottom: 6px;
+    background: #1f2937;
+    border-radius: 6px;
+    border-left: 3px solid #5865f2;
+    font-size: 14px;
+}
+.no-messages {
+    color: #6b7280;
+    text-align: center;
+    padding: 20px 0;
+    font-style: italic;
+}
+.bot-settings {
+    background: #111827;
+    padding: 15px;
+    border-radius: 10px;
+    margin-bottom: 15px;
+}
+.bot-settings input { margin-bottom: 10px; }
+.footer-links {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid #374151;
+    text-align: center;
+    font-size: 12px;
+}
+.footer-links a {
+    color: #9ca3af;
+    text-decoration: none;
+    margin: 0 10px;
+}
+.footer-links a:hover {
+    color: #5865f2;
+    text-decoration: underline;
+}
+.log-container {
+    background: #0a0e17;
+    border: 1px solid #1f2937;
+    border-radius: 10px;
+    padding: 12px;
+    max-height: 300px;
+    overflow-y: auto;
+    margin-bottom: 15px;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    line-height: 1.6;
+}
+.log-entry {
+    padding: 4px 8px;
+    margin-bottom: 2px;
+    border-radius: 4px;
+}
+.log-info { color: #60a5fa; }
+.log-success { color: #34d399; }
+.log-error { color: #f87171; }
+.log-warning { color: #fbbf24; }
+.log-debug { color: #9ca3af; }
+.log-timestamp { color: #6b7280; margin-right: 8px; }
+.log-entry .log-details {
+    color: #d1d5db;
+    font-size: 11px;
+    margin-left: 10px;
+}
+.log-entry .log-arrow {
+    color: #374151;
+    margin-right: 6px;
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+
+    <!-- SEND PAGE -->
+    <div id="sendPage">
+        <div class="tabs">
+            <button class="active" onclick="showSendPage()">Send</button>
+            <button onclick="showReceivePage()">Receive</button>
+        </div>
+        <h1>Discord Sender</h1>
+        <label>webhook</label>
+        <select id="webhookSelect"></select>
+        <label>message</label>
+        <textarea id="message" placeholder="type your message..."></textarea>
+        <button onclick="sendMessage()">SEND</button>
+        <div class="controls-row">
+            <button class="secondary" onclick="clearMessage()">clear</button>
+            <button class="secondary" onclick="showSettings()">settings</button>
+        </div>
+        <div id="status" class="status">ready</div>
+        <div class="footer-links">
+            <a href="#">Terms of Service</a>
+            <a href="#">Privacy Policy</a>
+        </div>
+    </div>
+
+    <!-- RECEIVE PAGE -->
+    <div id="receivePage" class="hidden">
+        <div class="tabs">
+            <button onclick="showSendPage()">Send</button>
+            <button class="active" onclick="showReceivePage()">Receive</button>
+        </div>
+        <h1>Discord Receiver</h1>
+        
+        <div class="bot-settings">
+            <label>bot token</label>
+            <input type="password" id="botToken" placeholder="paste your bot token here">
+            <label>channel id</label>
+            <input type="text" id="channelId" placeholder="channel id">
+            <label>message limit (1-100)</label>
+            <input type="number" id="messageLimit" placeholder="50" value="50" min="1" max="100">
+        </div>
+        
+        <!-- DETAILED LOG -->
+        <div style="margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-weight:bold; font-size:13px;">DETAILED LOG</span>
+            <button class="secondary" onclick="clearLog()" style="width:auto; padding:5px 15px; font-size:12px; margin:0;">clear log</button>
+        </div>
+        <div id="detailedLog" class="log-container">
+            <div class="log-entry log-info">
+                <span class="log-timestamp">[--:--:--]</span>
+                <span class="log-arrow">▸</span>
+                <span>Log initialized. Ready to fetch messages.</span>
+            </div>
+        </div>
+        
+        <div class="controls-row">
+            <button onclick="fetchMessages()">Fetch Messages</button>
+            <button class="secondary" onclick="clearMessages()">clear chat</button>
+        </div>
+        
+        <div id="messageLog" class="message-log">
+            <div class="no-messages">no messages yet</div>
+        </div>
+        
+        <button class="secondary" onclick="showSendPage()">back</button>
+        <div class="footer-links">
+            <a href="#">Terms of Service</a>
+            <a href="#">Privacy Policy</a>
+        </div>
+    </div>
+
+    <!-- SETTINGS PAGE -->
+    <div id="settingsPage" class="hidden">
+        <h1>Webhook Settings</h1>
+        <div id="webhookList"></div>
+        <button onclick="addWebhook()">add webhook</button>
+        <button onclick="saveSettings()">save</button>
+        <button class="secondary" onclick="showSendPage()">back</button>
+        <div class="footer-links">
+            <a href="#">Terms of Service</a>
+            <a href="#">Privacy Policy</a>
+        </div>
+    </div>
+
+</div>
+
+<script>
+let webhooks = JSON.parse(localStorage.getItem("discordWebhooks") || "[]");
+let lastMessageId = null;
+
+// Load saved settings if they exist
+if (localStorage.getItem("botToken")) {
+    document.getElementById("botToken").value = localStorage.getItem("botToken");
+}
+if (localStorage.getItem("channelId")) {
+    document.getElementById("channelId").value = localStorage.getItem("channelId");
+}
+
+function refreshWebhookSelect() {
+    const select = document.getElementById("webhookSelect");
+    select.innerHTML = "";
+    if (webhooks.length === 0) {
+        const option = document.createElement("option");
+        option.textContent = "no webhooks";
+        option.value = "";
+        select.appendChild(option);
+        return;
+    }
+    webhooks.forEach((webhook, index) => {
+        const option = document.createElement("option");
+        option.value = index;
+        option.textContent = webhook.name || "webhook " + (index + 1);
+        select.appendChild(option);
+    });
+}
+
+function getTimestamp() {
+    const now = new Date();
+    return now.toTimeString().split(' ')[0];
+}
+
+function addLogEntry(type, message, details = '') {
+    const log = document.getElementById("detailedLog");
+    const entry = document.createElement("div");
+    entry.className = `log-entry log-${type}`;
+    
+    let detailHtml = '';
+    if (details) {
+        detailHtml = `<span class="log-details">${details}</span>`;
+    }
+    
+    entry.innerHTML = `
+        <span class="log-timestamp">[${getTimestamp()}]</span>
+        <span class="log-arrow">▸</span>
+        <span>${message}</span>
+        ${detailHtml}
+    `;
+    log.appendChild(entry);
+    log.scrollTop = log.scrollHeight;
+}
+
+function clearLog() {
+    const log = document.getElementById("detailedLog");
+    log.innerHTML = `<div class="log-entry log-info">
+        <span class="log-timestamp">[${getTimestamp()}]</span>
+        <span class="log-arrow">▸</span>
+        <span>Log cleared.</span>
+    </div>`;
+}
+
+async function sendMessage() {
+    const message = document.getElementById("message").value;
+    const selected = document.getElementById("webhookSelect").value;
+    const status = document.getElementById("status");
+    
+    addLogEntry('info', 'Starting send message process...');
+    
+    if (!message.trim()) {
+        addLogEntry('error', 'Message is empty.');
+        status.textContent = "type something";
+        return;
+    }
+    
+    if (webhooks.length === 0) {
+        addLogEntry('error', 'No webhooks configured.');
+        status.textContent = "no webhooks";
+        return;
+    }
+    
+    const webhook = webhooks[selected];
+    if (!webhook || !webhook.url) {
+        addLogEntry('error', 'Invalid webhook.');
+        status.textContent = "invalid webhook";
+        return;
+    }
+    
+    status.textContent = "sending...";
+    
+    try {
+        const response = await fetch(webhook.url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ content: message })
+        });
+        
+        if (response.ok) {
+            addLogEntry('success', 'Message sent successfully!');
+            status.textContent = "sent!";
+            document.getElementById("message").value = "";
+        } else {
+            const text = await response.text();
+            addLogEntry('error', `Error: ${response.status} - ${text}`);
+            status.textContent = "error: " + response.status;
+        }
+    } catch (error) {
+        addLogEntry('error', `Failed: ${error.message}`);
+        status.textContent = "error: " + error.message;
+    }
+}
+
+async function fetchMessages() {
+    const log = document.getElementById("messageLog");
+    const status = document.getElementById("status");
+    
+    clearLog();
+    addLogEntry('info', '=== STARTING MESSAGE FETCH ===');
+    
+    const botToken = document.getElementById("botToken").value.trim();
+    const channelId = document.getElementById("channelId").value.trim();
+    const limit = parseInt(document.getElementById("messageLimit").value) || 50;
+
+    if (!botToken) {
+        addLogEntry('error', 'No bot token provided!');
+        status.textContent = "no token";
+        return;
+    }
+
+    if (!channelId) {
+        addLogEntry('error', 'No channel ID provided!');
+        status.textContent = "no channel";
+        return;
+    }
+
+    addLogEntry('debug', `Bot token length: ${botToken.length} characters`);
+    addLogEntry('debug', `Channel ID: ${channelId}`);
+    addLogEntry('debug', `Message limit: ${limit}`);
+
+    localStorage.setItem("botToken", botToken);
+    localStorage.setItem("channelId", channelId);
+    addLogEntry('debug', 'Settings saved to localStorage');
+
+    const fetchUrl = lastMessageId ? 
+        `https://discord.com/api/v10/channels/${channelId}/messages?limit=${limit}&before=${lastMessageId}` :
+        `https://discord.com/api/v10/channels/${channelId}/messages?limit=${limit}`;
+
+    addLogEntry('info', `Requesting: ${fetchUrl}`);
+    status.textContent = "fetching...";
+
+    try {
+        const response = await fetch(fetchUrl, {
+            headers: {
+                "Authorization": `Bot ${botToken}`
+            }
+        });
+        
+        addLogEntry('debug', `Response status: ${response.status} ${response.statusText}`);
+        
+        if (response.status === 401) {
+            addLogEntry('error', 'Invalid token! Reset it in Discord Developer Portal.');
+            status.textContent = "invalid token";
+            return;
+        }
+        
+        if (response.status === 403) {
+            addLogEntry('error', 'Bot lacks permission!');
+            addLogEntry('info', 'Make sure bot has "Read Message History" permission.');
+            status.textContent = "permission denied";
+            return;
+        }
+
+        if (response.status === 404) {
+            addLogEntry('error', 'Channel not found! Check the ID.');
+            status.textContent = "channel not found";
+            return;
+        }
+
+        if (!response.ok) {
+            const text = await response.text();
+            addLogEntry('error', `HTTP ${response.status}: ${text}`);
+            status.textContent = "error: " + response.status;
+            return;
+        }
+
+        const messages = await response.json();
+        addLogEntry('success', `Received ${messages.length} messages!`);
+        
+        if (!messages || messages.length === 0) {
+            addLogEntry('warning', 'No messages in this channel.');
+            if (!lastMessageId) {
+                log.innerHTML = `<div class="no-messages">channel is empty</div>`;
+            }
+            status.textContent = "no messages";
+            return;
+        }
+
+        if (messages.length > 0) {
+            lastMessageId = messages[messages.length - 1].id;
+            addLogEntry('debug', `Last message ID: ${lastMessageId}`);
+        }
+
+        let html = '';
+        let count = 0;
+        messages.forEach(msg => {
+            count++;
+            const time = new Date(msg.timestamp);
+            const timeStr = time.toLocaleString();
+            const author = msg.author?.username || 'Unknown';
+            const content = msg.content || '(no text)';
+            
+            html += `
+                <div class="message-entry">
+                    <span>${timeStr}</span>
+                    <span style="color:#5865f2;font-weight:bold;">${escapeHTML(author)}</span>
+                    <span>${escapeHTML(content)}</span>
+                </div>
+            `;
+        });
+
+        if (log.querySelector('.no-messages') || !lastMessageId) {
+            log.innerHTML = html;
+        } else {
+            log.innerHTML = html + log.innerHTML;
+        }
+
+        status.textContent = `fetched ${messages.length} messages`;
+        addLogEntry('success', '=== FETCH COMPLETE ===');
+        
+    } catch (error) {
+        addLogEntry('error', `ERROR: ${error.message}`);
+        addLogEntry('info', 'If you see "Failed to fetch", this is a CORS issue.');
+        addLogEntry('info', 'Upload this file to GitHub Pages or use a CORS extension.');
+        status.textContent = "error: " + error.message;
+    }
+}
+
+function clearMessages() {
+    const log = document.getElementById("messageLog");
+    log.innerHTML = `<div class="no-messages">cleared</div>`;
+    lastMessageId = null;
+    document.getElementById("status").textContent = "cleared";
+    addLogEntry('info', 'Chat log cleared');
+}
+
+function clearMessage() {
+    document.getElementById("message").value = "";
+    document.getElementById("status").textContent = "cleared";
+}
+
+function showSendPage() {
+    document.getElementById("sendPage").classList.remove("hidden");
+    document.getElementById("receivePage").classList.add("hidden");
+    document.getElementById("settingsPage").classList.add("hidden");
+    refreshWebhookSelect();
+}
+
+function showReceivePage() {
+    document.getElementById("sendPage").classList.add("hidden");
+    document.getElementById("receivePage").classList.remove("hidden");
+    document.getElementById("settingsPage").classList.add("hidden");
+    if (localStorage.getItem("botToken")) {
+        document.getElementById("botToken").value = localStorage.getItem("botToken");
+    }
+    if (localStorage.getItem("channelId")) {
+        document.getElementById("channelId").value = localStorage.getItem("channelId");
+    }
+    clearLog();
+    addLogEntry('info', 'Switched to Receive tab.');
+}
+
+function showSettings() {
+    document.getElementById("sendPage").classList.add("hidden");
+    document.getElementById("receivePage").classList.add("hidden");
+    document.getElementById("settingsPage").classList.remove("hidden");
+    renderSettings();
+}
+
+function renderSettings() {
+    const list = document.getElementById("webhookList");
+    list.innerHTML = "";
+    webhooks.forEach((webhook, index) => {
+        const div = document.createElement("div");
+        div.className = "bot-settings";
+        div.innerHTML = `
+            <label>name</label>
+            <input type="text" class="apiName" data-index="${index}" value="${escapeHTML(webhook.name || '')}">
+            <label>webhook url</label>
+            <input type="text" class="apiURL" data-index="${index}" value="${escapeHTML(webhook.url || '')}">
+            <button class="danger" onclick="removeWebhook(${index})">delete</button>
+        `;
+        list.appendChild(div);
+    });
+}
+
+function addWebhook() {
+    webhooks.push({ name: "new webhook", url: "" });
+    renderSettings();
+}
+
+function removeWebhook(index) {
+    webhooks.splice(index, 1);
+    renderSettings();
+}
+
+function saveSettings() {
+    const names = document.querySelectorAll(".apiName");
+    const urls = document.querySelectorAll(".apiURL");
+    const newWebhooks = [];
+    for (let i = 0; i < names.length; i++) {
+        const name = names[i].value.trim();
+        const url = urls[i].value.trim();
+        if (url) {
+            newWebhooks.push({ name: name || "webhook " + (i + 1), url: url });
+        }
+    }
+    webhooks = newWebhooks;
+    localStorage.setItem("discordWebhooks", JSON.stringify(webhooks));
+    location.reload();
+}
+
+function escapeHTML(text) {
+    return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+}
+
+refreshWebhookSelect();
+</script>
+</body>
+</html>
